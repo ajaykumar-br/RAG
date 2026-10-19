@@ -10,18 +10,21 @@ from sentence_transformers import SentenceTransformer
 
 from chunking import chunk_text
 
+from config import CHUNK_WORDS, INDEX_DIR, MODEL_NAME, OVERLAP
+
 TRANSCRIPT_DIR = Path("data/transcripts")
-INDEX_DIR = Path("data/index")
-MODEL_NAME = "all-MiniLM-L6-v2"
-CHUNK_WORDS, OVERLAP = 150, 30
 
 
 def load_chunks():
+    step = CHUNK_WORDS - OVERLAP
     records = []
     for path in sorted(TRANSCRIPT_DIR.glob("*.txt")):
         text = path.read_text(encoding="utf-8")
         for i, chunk in enumerate(chunk_text(text, CHUNK_WORDS, OVERLAP)):
-            records.append({"video_id": path.stem, "chunk_index": i, "text": chunk})
+            start = i * step
+            records.append({"video_id": path.stem, "chunk_index": i,
+                            "start_word": start, "end_word": start + len(chunk.split()),
+                            "text": chunk})
     return records
 
 
