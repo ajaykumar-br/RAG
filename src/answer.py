@@ -10,24 +10,21 @@ from sentence_transformers import SentenceTransformer
 from config import MODEL_NAME
 from llm import complete
 from search import load_index, search
+from rerank import load_reranker, rerank
 
 SYSTEM = (
     "You answer questions using ONLY the numbered sources provided. The sources are excerpts "
     "from YouTube video transcripts (spoken language, so they can be messy). "
     "Cite the sources you use like [1] or [2][3] right after each claim. "
     "If the excerpts do not contain the answer, say 'the retrieved excerpts don't contain this'. "
-    "They are only a few passages from many videos, so their silence does not mean the videos never say it."
-    "Do not use outside knowledge."
+    "They are only a few passages from many videos, so their silence does not mean the videos never say it. "
+    "Do not use outside knowledge. "
     "Keep the answer under about 150 words."
 )
 
 
 def build_prompt(question, hits):
     """hits: list of (score, record) pairs from search(). Return the user message for the LLM."""
-    # TODO: build a string that lists each source as
-    #   [1] (video <video_id>, chunk <chunk_index>)
-    #   <chunk text>
-    # with a blank line between sources, then the question at the end, e.g. "Question: ..."
     parts = []
     for i, (_, r) in enumerate(hits, start=1):
         parts.append(f"[{i}] (video {r['video_id']}, chunk {r['chunk_index']})\n{r['text']}")
@@ -44,8 +41,10 @@ def main():
     question = " ".join(args.question)
 
     model = SentenceTransformer(MODEL_NAME)
+    reranker = load_reranker()
     embeddings, records = load_index()
-    hits = search(question, model, embeddings, records, k=args.k)
+    # hits = search(question, model, embeddings, records, k=args.k)
+    hits = rerank(question, search(question, model, embeddings, records, k=20), reranker, top_n=args.k)
     prompt = build_prompt(question, hits)
     if args.show_prompt:
         print(prompt, "\n" + "=" * 80)
