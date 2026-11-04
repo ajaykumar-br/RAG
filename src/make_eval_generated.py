@@ -18,6 +18,22 @@ Rules:
 def norm(s):
     return " ".join(re.sub(r"[^\w\s]", "", s.lower()).split())
 
+
+def parse_last_json(text):
+    dec = json.JSONDecoder()
+    found = None
+    i = text.find("{")
+    while i != -1:
+        try:
+            obj, end = dec.raw_decode(text, i)
+            if isinstance(obj, dict):
+                found = obj
+            i = text.find("{", end)
+        except json.JSONDecodeError:
+            i = text.find("{", i + 1)
+    return found
+
+
 def main():
     records = [json.loads(l) for l in CHUNKS.read_text(encoding="utf-8").splitlines()]
     records = [r for r in records if len(r["text"].split()) >= 120]
@@ -33,15 +49,17 @@ def main():
 
     stats = dict(kept=0, skipped=0, bad_json=0, phrase_missing=0)
     cost = 0.0
+    bad = []
     with OUT.open("w", encoding="utf-8") as f:
         for r in picked:
             text, usage = complete(f"Passage:\n{r['text']}", system=SYSTEM, max_tokens=200)
             cost += usage.get("cost", 0) or 0
             text = re.sub(r"^```(?:json)?|```$", "", text.strip()).strip()
-            try:
-                d = json.loads(text)
-            except json.JSONDecodeError:
+
+            d = parse_last_json(text)
+            if d is None:
                 stats["bad_json"] += 1
+                bad.append(text)
                 continue
             if d.get("skip"):
                 stats["skipped"] += 1
@@ -54,6 +72,7 @@ def main():
             f.write(json.dumps(row, ensure_ascii=False) + "\n")
             stats["kept"] += 1
     print(stats, f"cost ${cost:.4f}")
+    Path("data/eval/bad_outputs.txt").write_text("\n-----\n".join(bad), encoding="utf-8")
 
 if __name__ == "__main__":
     main()

@@ -1,6 +1,6 @@
 """Chunk every transcript, embed the chunks, save the index.
 
-Run:  uv run python build_index.py
+Run:  uv run python src/build_index.py
 """
 import json
 from pathlib import Path
